@@ -5,18 +5,18 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.8.0
   creationTimestamp: null
-  name: mytypes.sample.template.crossplane.io
+  name: accounts.account.cloudfalre.crossplane.io
 spec:
-  group: sample.template.crossplane.io
+  group: account.cloudfalre.crossplane.io
   names:
     categories:
     - crossplane
     - managed
-    - template
-    kind: MyType
-    listKind: MyTypeList
-    plural: mytypes
-    singular: mytype
+    - cloudfalre
+    kind: Account
+    listKind: AccountList
+    plural: accounts
+    singular: account
   scope: Cluster
   versions:
   - additionalPrinterColumns:
@@ -35,7 +35,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: A MyType is an example API type.
+        description: A Account is an example API type.
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -50,7 +50,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: A MyTypeSpec defines the desired state of a MyType.
+            description: A AccountSpec defines the desired state of a Account.
             properties:
               deletionPolicy:
                 default: Delete
@@ -62,12 +62,18 @@ spec:
                 - Delete
                 type: string
               forProvider:
-                description: MyTypeParameters are the configurable fields of a MyType.
+                description: AccountParameters are the configurable fields of a Account.
                 properties:
-                  configurableField:
+                  name:
                     type: string
+                  settings:
+                    properties:
+                      enforceTwoFactor:
+                        type: boolean
+                    type: object
                 required:
-                - configurableField
+                - name
+                - settings
                 type: object
               providerConfigRef:
                 default:
@@ -166,12 +172,12 @@ spec:
             - forProvider
             type: object
           status:
-            description: A MyTypeStatus represents the observed state of a MyType.
+            description: A AccountStatus represents the observed state of a Account.
             properties:
               atProvider:
-                description: MyTypeObservation are the observable fields of a MyType.
+                description: AccountObservation are the observable fields of a Account.
                 properties:
-                  observableField:
+                  type:
                     type: string
                 type: object
               conditions:

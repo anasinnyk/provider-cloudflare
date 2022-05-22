@@ -1,0 +1,14 @@
+apiVersion: account.cloudfalre.crossplane.io/v1alpha1
+kind: Account
+metadata:
+  name: personal
+  namespace: crossplane-system
+  annotations:
+    crossplane.io/external-name: 5753888c3f5c04e3787196576cd35bcd
+spec:
+  forProvider:
+    name: Andrii Nasinnyk Personal
+    settings:
+      enforceTwoFactor: true
+  providerConfigRef:
+    name: macpaw
