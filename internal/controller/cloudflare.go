@@ -22,12 +22,14 @@ import (
 
 	"github.com/crossplane/provider-cloudflare/internal/controller/account"
 	"github.com/crossplane/provider-cloudflare/internal/controller/config"
+	"github.com/crossplane/provider-cloudflare/internal/controller/zone"
 )
 
 // Setup creates all Cloudflare controllers with the supplied logger and adds them to
 // the supplied manager.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
 	for _, setup := range []func(ctrl.Manager, controller.Options) error{
+		zone.Setup,
 		config.Setup,
 		account.Setup,
 	} {

@@ -14,13 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package account
+package zone
 
 import (
 	"context"
-	"github.com/cloudflare/cloudflare-go"
-	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
-	"github.com/crossplane/crossplane-runtime/pkg/meta"
+	"fmt"
+
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -33,37 +32,30 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/reconciler/managed"
 	"github.com/crossplane/crossplane-runtime/pkg/resource"
 
-	"github.com/crossplane/provider-cloudflare/apis/account/v1alpha1"
-	apisv1alpha1 "github.com/crossplane/provider-cloudflare/apis/v1alpha1"
-	"github.com/crossplane/provider-cloudflare/internal/controller/features"
+	apisv1alpha1 "github.com/crossplane/provider-cloudfalre/apis/v1alpha1"
+	"github.com/crossplane/provider-cloudfalre/apis/zone/v1alpha1"
+	"github.com/crossplane/provider-cloudfalre/internal/controller/features"
 )
 
 const (
-	errNotAccount    = "managed resource is not a Account custom resource"
-	errTrackPCUsage  = "cannot track ProviderConfig usage"
-	errGetPC         = "cannot get ProviderConfig"
-	errGetCreds      = "cannot get credentials"
-	errCannotCreated = "cannot be created resource Account (Observe/Updated only)"
-	errNewClient     = "cannot create new Service"
+	errNotZone      = "managed resource is not a Zone custom resource"
+	errTrackPCUsage = "cannot track ProviderConfig usage"
+	errGetPC        = "cannot get ProviderConfig"
+	errGetCreds     = "cannot get credentials"
+
+	errNewClient = "cannot create new Service"
 )
 
-// A CloudflareService does nothing.
-type CloudflareService struct {
-	cfAPI *cloudflare.API
-}
+// A ZoneService does nothing.
+type ZoneService struct{}
 
 var (
-	newCloudflareService = func(creds []byte) (*CloudflareService, error) {
-		cfAPI, err := cloudflare.NewWithAPIToken(string(creds))
-		return &CloudflareService{
-			cfAPI,
-		}, err
-	}
+	newZoneService = func(_ []byte) (interface{}, error) { return &ZoneService{}, nil }
 )
 
-// Setup adds a controller that reconciles Account managed resources.
+// Setup adds a controller that reconciles Zone managed resources.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
-	name := managed.ControllerName(v1alpha1.AccountGroupKind)
+	name := managed.ControllerName(v1alpha1.ZoneGroupKind)
 
 	cps := []managed.ConnectionPublisher{managed.NewAPISecretPublisher(mgr.GetClient(), mgr.GetScheme())}
 	if o.Features.Enabled(features.EnableAlphaExternalSecretStores) {
@@ -71,11 +63,11 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 	}
 
 	r := managed.NewReconciler(mgr,
-		resource.ManagedKind(v1alpha1.AccountGroupVersionKind),
+		resource.ManagedKind(v1alpha1.ZoneGroupVersionKind),
 		managed.WithExternalConnecter(&connector{
 			kube:         mgr.GetClient(),
 			usage:        resource.NewProviderConfigUsageTracker(mgr.GetClient(), &apisv1alpha1.ProviderConfigUsage{}),
-			newServiceFn: newCloudflareService}),
+			newServiceFn: newZoneService}),
 		managed.WithLogger(o.Logger.WithValues("controller", name)),
 		managed.WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
 		managed.WithConnectionPublishers(cps...))
@@ -83,7 +75,7 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(name).
 		WithOptions(o.ForControllerRuntime()).
-		For(&v1alpha1.Account{}).
+		For(&v1alpha1.Zone{}).
 		Complete(ratelimiter.NewReconciler(name, r, o.GlobalRateLimiter))
 }
 
@@ -92,7 +84,7 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 type connector struct {
 	kube         client.Client
 	usage        resource.Tracker
-	newServiceFn func(creds []byte) (*CloudflareService, error)
+	newServiceFn func(creds []byte) (interface{}, error)
 }
 
 // Connect typically produces an ExternalClient by:
@@ -101,9 +93,9 @@ type connector struct {
 // 3. Getting the credentials specified by the ProviderConfig.
 // 4. Using the credentials to form a client.
 func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.ExternalClient, error) {
-	cr, ok := mg.(*v1alpha1.Account)
+	cr, ok := mg.(*v1alpha1.Zone)
 	if !ok {
-		return nil, errors.New(errNotAccount)
+		return nil, errors.New(errNotZone)
 	}
 
 	if err := c.usage.Track(ctx, mg); err != nil {
@@ -134,58 +126,72 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.E
 type external struct {
 	// A 'client' used to connect to the external resource API. In practice this
 	// would be something like an AWS SDK client.
-	service *CloudflareService
+	service interface{}
 }
 
 func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) {
-	cr, ok := mg.(*v1alpha1.Account)
+	cr, ok := mg.(*v1alpha1.Zone)
 	if !ok {
-		return managed.ExternalObservation{}, errors.New(errNotAccount)
+		return managed.ExternalObservation{}, errors.New(errNotZone)
 	}
 
-	acc, _, err := c.service.cfAPI.Account(ctx, meta.GetExternalName(cr))
-	if err != nil {
-		return managed.ExternalObservation{}, err
-	}
-	cr.Status.SetConditions(xpv1.Available())
-	cr.Status.AtProvider.Type = acc.Type
+	// These fmt statements should be removed in the real implementation.
+	fmt.Printf("Observing: %+v", cr)
 
 	return managed.ExternalObservation{
+		// Return false when the external resource does not exist. This lets
+		// the managed resource reconciler know that it needs to call Create to
+		// (re)create the resource, or that it has successfully been deleted.
 		ResourceExists: true,
-		ResourceUpToDate: cr.Spec.ForProvider.Name == acc.Name &&
-			cr.Spec.ForProvider.Settings.EnforceTwoFactor == acc.Settings.EnforceTwoFactor,
+
+		// Return false when the external resource exists, but it not up to date
+		// with the desired managed resource state. This lets the managed
+		// resource reconciler know that it needs to call Update.
+		ResourceUpToDate: true,
+
+		// Return any details that may be required to connect to the external
+		// resource. These will be stored as the connection secret.
+		ConnectionDetails: managed.ConnectionDetails{},
 	}, nil
 }
 
 func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.ExternalCreation, error) {
-	cr, ok := mg.(*v1alpha1.Account)
+	cr, ok := mg.(*v1alpha1.Zone)
 	if !ok {
-		return managed.ExternalCreation{}, errors.New(errNotAccount)
-	}
-	if meta.GetExternalName(cr) == "" {
-		return managed.ExternalCreation{}, errors.New(errCannotCreated)
+		return managed.ExternalCreation{}, errors.New(errNotZone)
 	}
 
-	return managed.ExternalCreation{}, nil
+	fmt.Printf("Creating: %+v", cr)
+
+	return managed.ExternalCreation{
+		// Optionally return any details that may be required to connect to the
+		// external resource. These will be stored as the connection secret.
+		ConnectionDetails: managed.ConnectionDetails{},
+	}, nil
 }
 
 func (c *external) Update(ctx context.Context, mg resource.Managed) (managed.ExternalUpdate, error) {
-	cr, ok := mg.(*v1alpha1.Account)
+	cr, ok := mg.(*v1alpha1.Zone)
 	if !ok {
-		return managed.ExternalUpdate{}, errors.New(errNotAccount)
+		return managed.ExternalUpdate{}, errors.New(errNotZone)
 	}
 
-	_, err := c.service.cfAPI.UpdateAccount(ctx, meta.GetExternalName(cr), cloudflare.Account{
-		Name: cr.Spec.ForProvider.Name,
-		Settings: &cloudflare.AccountSettings{
-			EnforceTwoFactor: cr.Spec.ForProvider.Settings.EnforceTwoFactor,
-		},
-	})
+	fmt.Printf("Updating: %+v", cr)
 
-	return managed.ExternalUpdate{}, err
+	return managed.ExternalUpdate{
+		// Optionally return any details that may be required to connect to the
+		// external resource. These will be stored as the connection secret.
+		ConnectionDetails: managed.ConnectionDetails{},
+	}, nil
 }
 
-func (c *external) Delete(_ context.Context, _ resource.Managed) error {
-	// We cannot remove account
+func (c *external) Delete(ctx context.Context, mg resource.Managed) error {
+	cr, ok := mg.(*v1alpha1.Zone)
+	if !ok {
+		return errors.New(errNotZone)
+	}
+
+	fmt.Printf("Deleting: %+v", cr)
+
 	return nil
 }

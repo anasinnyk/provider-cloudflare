@@ -1,7 +1,5 @@
 module github.com/crossplane/provider-cloudflare
 
-replace github.com/crossplane/provider-cloudflare => ./
-
 go 1.18
 
 require (

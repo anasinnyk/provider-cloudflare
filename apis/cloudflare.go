@@ -22,6 +22,7 @@ import (
 
 	accountv1alpha1 "github.com/crossplane/provider-cloudflare/apis/account/v1alpha1"
 	cloudflarev1alpha1 "github.com/crossplane/provider-cloudflare/apis/v1alpha1"
+	zonev1alpha1 "github.com/crossplane/provider-cloudflare/apis/zone/v1alpha1"
 )
 
 func init() {
@@ -29,6 +30,7 @@ func init() {
 	AddToSchemes = append(AddToSchemes,
 		cloudflarev1alpha1.SchemeBuilder.AddToScheme,
 		accountv1alpha1.SchemeBuilder.AddToScheme,
+		zonev1alpha1.SchemeBuilder.AddToScheme,
 	)
 }
 
